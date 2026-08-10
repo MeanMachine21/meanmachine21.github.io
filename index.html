@@ -687,6 +687,15 @@
   }
 
   .lineup-strips-panel { display: flex; flex-direction: column; gap: 7px; width: 340px; }
+  .coach-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .coach-stat { background: var(--lcd-bg); border-radius: 4px; padding: 10px 14px; }
+  .coach-stat-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .coach-stat-value {
+    font-family: 'Big Shoulders Display', 'Anton', sans-serif; font-weight: 800; font-size: 22px; color: var(--lcd-green);
+  }
   .lineup-strips-title {
     font-family: 'Big Shoulders Display', 'Anton', sans-serif; font-weight: 900; font-size: 22px;
     letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 4px;
@@ -713,9 +722,14 @@
     background: var(--lcd-bg); border-radius: 4px; padding: 10px 14px;
   }
   .predict-cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; margin-top: 8px; }
+  .predict-cc-box { background: var(--lcd-bg); border-radius: 4px; padding: 8px 12px; }
+  .predict-cc-conf {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 4px;
+  }
   .predict-cc-row {
-    display: flex; align-items: center; gap: 8px; background: var(--lcd-bg); border-radius: 4px;
-    padding: 8px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
   }
   .predict-vs { color: var(--muted); font-size: 10px; }
   .predict-winner { color: var(--lcd-green); font-weight: 700; }
@@ -842,7 +856,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v76</div>
+  <div class="name">MEANMACHINE GAME RECAP v77</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -894,6 +908,7 @@
         <div class="check-item" data-key="draft_class"><span class="led"></span><span class="check-label">Draft Class (drop every year's export)</span><span class="check-filename"></span></div>
         <div class="check-item" data-key="hof"><span class="led"></span><span class="check-label">Hall of Fame (season awards)</span><span class="check-filename"></span></div>
         <div class="check-item" data-key="player_records"><span class="led"></span><span class="check-label">All-Time Records</span><span class="check-filename"></span></div>
+        <div class="check-item" data-key="career_data"><span class="led"></span><span class="check-label">Coach's Corner (career data)</span><span class="check-filename"></span></div>
       </div>
       <div class="career-history-panel">
         <div class="extra-files-note" style="margin-top: 4px;">The game completely overwrites Schedule.txt every time you advance to the offseason. In Chrome or Edge, connect a Career History file once and it saves automatically forever after — no backups to remember. In Firefox or Safari (which don't support that), download a snapshot before you're done each session, then drop that same file back in next time — it's one small file to re-upload instead of needing to catch Schedule.txt before every advance.</div>
@@ -934,6 +949,7 @@
       <button class="tab-btn" data-view="draftclass">Draft Class</button>
       <button class="tab-btn" data-view="hof">Hall of Fame</button>
       <button class="tab-btn" data-view="records">All-Time Records</button>
+      <button class="tab-btn" data-view="coach">Coach's Corner</button>
     </div>
 
     <div class="view active" id="view-summary"></div>
@@ -948,6 +964,7 @@
     <div class="view" id="view-draftclass"></div>
     <div class="view" id="view-hof"></div>
     <div class="view" id="view-records"></div>
+    <div class="view" id="view-coach"></div>
   </div>
 
 </div>
@@ -2055,6 +2072,49 @@ function mergePlayerRecordsFiles(files) {
   return Array.from(byKey.values());
 }
 
+function parseCareerDataFile(text) {
+  const cleaned = text.replace(/\0+$/, '').trim();
+  const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) return null;
+  const header = lines[0].split('\t');
+  const idx = (name) => header.indexOf(name);
+  const has = (name) => idx(name) !== -1;
+  const cols = lines[1].split('\t');
+  const num = (name) => has(name) ? Number(cols[idx(name)]) : null;
+  const str = (name) => has(name) ? cols[idx(name)] : null;
+  return {
+    tid: num('tid'), teamCity: str('team_city'), teamName: str('team_name'),
+    coachFname: str('coach_fname'), coachLname: str('coach_lname'),
+    baseYear: num('base_year'), year: num('year'), week: num('week'),
+    contractYear: num('contract_year'), contractTotalYears: num('contract_total_years'),
+    contractPrestige: num('contract_prestige'), contractWins: num('contract_wins'), contractBowls: num('contract_bowls'),
+    lastGame: str('last_game'), teamYears: num('team_years'), winningSeasons: num('winning_seasons'),
+    winStreak: num('win_streak'), lossStreak: num('loss_streak'), longestWinStreak: num('longest_win_streak'),
+    wins: num('wins'), losses: num('losses'),
+    playoffsMade: num('playoffs_made'), playoffWins: num('playoff_wins'), playoffLosses: num('playoff_losses'),
+    conferenceChamps: num('conference_champs'), bowlWins: num('bowl_wins'), bowlLosses: num('bowl_losses'),
+    nattyWins: num('natty_wins'), nattyLosses: num('natty_losses'),
+    conferenceNames: [0, 1, 2, 3, 4, 5].map(i => str(`conf${i}`)),
+  };
+}
+
+// Each snapshot represents "coach's status as of right now, at this team" -
+// accumulating multiple uploads lets a coach who changed teams (fired,
+// hired elsewhere) see their whole journey, not just wherever they are now.
+// Dedup by team city, since re-uploading a later snapshot from the SAME
+// team should update that team's entry, not create a duplicate.
+function mergeCareerDataFiles(files) {
+  const byTeam = new Map();
+  files.forEach(f => {
+    let parsed;
+    try { parsed = parseCareerDataFile(f.text); } catch (e) { parsed = null; }
+    if (!parsed || !parsed.teamCity) return;
+    if (byTeam.has(parsed.teamCity)) byTeam.delete(parsed.teamCity);
+    byTeam.set(parsed.teamCity, parsed);
+  });
+  return Array.from(byTeam.values());
+}
+
 function parseHofFile(text) {
   const cleaned = text.replace(/\0+$/, '').trim();
   const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length > 0);
@@ -2343,7 +2403,10 @@ function assignByType(type, text, filename) {
     hofText = text;
     if (!pendingHofFiles.some(f => f.text === text)) pendingHofFiles.push({ filename, text });
   }
-  else if (type === 'career_data') { careerDataText = text; }
+  else if (type === 'career_data') {
+    careerDataText = text;
+    if (!pendingCareerDataFiles.some(f => f.text === text)) pendingCareerDataFiles.push({ filename, text });
+  }
   else if (type === 'player_records') {
     playerRecordsText = text;
     if (!pendingPlayerRecordsFiles.some(f => f.text === text)) pendingPlayerRecordsFiles.push({ filename, text });
@@ -2353,7 +2416,7 @@ function assignByType(type, text, filename) {
   else if (type === 'original_roster') { originalRosterText = text; }
 }
 
-const CHECKLIST_KEYS = ['stats', 'playsheet', 'roster_user', 'schedule', 'colors', 'career_history_archive', 'draft_class', 'hof', 'player_records'];
+const CHECKLIST_KEYS = ['stats', 'playsheet', 'roster_user', 'schedule', 'colors', 'career_history_archive', 'draft_class', 'hof', 'player_records', 'career_data'];
 const recognizedExtras = [];
 const unrecognizedFiles = [];
 
@@ -2530,6 +2593,7 @@ let pendingScheduleFiles = [];
 let pendingDraftClassFiles = []; // accumulates across multiple years' exports, same pattern as schedule
 let pendingPlayerRecordsFiles = [];
 let pendingHofFiles = [];
+let pendingCareerDataFiles = [];
 let loadedGames = []; // [{filename, label, players, model, colorFields, gameHighlights, gameWeekLabel, injuries}]
 let activeGameIndex = -1;
 
@@ -2668,6 +2732,7 @@ function tryBuild() {
   renderDraftClassBoard();
   renderHallOfFame();
   renderAllTimeRecords();
+  renderCoachsCorner();
 
   const newLoadedGames = [];
   pairs.forEach(pair => {
@@ -2727,6 +2792,7 @@ function tryBuild() {
   renderDraftClassBoard();
   renderHallOfFame();
   renderAllTimeRecords();
+  renderCoachsCorner();
 }
 
 function renderActiveGame() {
@@ -2788,6 +2854,7 @@ function removeGame(idx) {
     renderDraftClassBoard();
     renderHallOfFame();
     renderAllTimeRecords();
+    renderCoachsCorner();
     return;
   }
   if (activeGameIndex === idx) activeGameIndex = Math.min(idx, loadedGames.length - 1);
@@ -2798,6 +2865,7 @@ function removeGame(idx) {
   renderDraftClassBoard();
   renderHallOfFame();
   renderAllTimeRecords();
+  renderCoachsCorner();
 }
 
 document.addEventListener('click', (e) => {
@@ -3783,16 +3851,22 @@ function buildPlayoffPredictionHtml() {
       : `${rankLabel(tid)} ?`;
   };
 
+  const confNames = pendingCareerDataFiles.length ? mergeCareerDataFiles(pendingCareerDataFiles)[0].conferenceNames : null;
+  const confLabel = (conf) => (confNames && confNames[conf]) ? confNames[conf] : `Conference ${conf}`;
+
   const ccRows = prediction.ccGames.map(g => {
     const winnerIsA = g.winnerTid === g.teamA;
     const noteText = g.isActualResult
       ? `${esc(g.scoreA)}-${esc(g.scoreB)} FINAL`
       : (g.fromRealSchedule ? 'scheduled' : 'projected matchup');
-    return `<div class="predict-cc-row">
-      <span class="${winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamA)}</span>
-      <span class="predict-vs">vs</span>
-      <span class="${!winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamB)}</span>
-      <span class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}">${noteText}</span>
+    return `<div class="predict-cc-box">
+      <div class="predict-cc-conf">${esc(confLabel(g.conference))}</div>
+      <div class="predict-cc-row">
+        <span class="${winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamA)}</span>
+        <span class="predict-vs">vs</span>
+        <span class="${!winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamB)}</span>
+        <span class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}">${noteText}</span>
+      </div>
     </div>`;
   }).join('');
 
@@ -3927,6 +4001,57 @@ function renderHallOfFame() {
     <h2 class="section-title">Hall of Fame</h2>
     <p class="empty-note" style="text-align:left; margin-bottom:16px;">Season awards across ${esc(years.length)} year${years.length === 1 ? '' : 's'}.</p>
     ${yearsHtml}
+  `;
+}
+
+function renderCoachsCorner() {
+  const container = document.getElementById('view-coach');
+  if (!container) return;
+  if (!pendingCareerDataFiles.length) {
+    container.innerHTML = `<h2 class="section-title">Coach's Corner</h2><div class="empty-note">Load a career_data.txt export to see your coaching career.</div>`;
+    return;
+  }
+
+  const stints = mergeCareerDataFiles(pendingCareerDataFiles)
+    .sort((a, b) => (b.year - a.year) || (b.week - a.week));
+  const current = stints[0];
+  const history = stints.slice(1);
+
+  const record = (w, l) => `${esc(w ?? 0)}-${esc(l ?? 0)}`;
+  const cityabbr = lastRosterTeams ? (lastRosterTeams.find(t => Math.round(t.tid) === current.tid) || {}).cityabbr : null;
+  const brand = cityabbr ? singleTeamBranding(cityabbr) : { primary: 'var(--panel)', secondary: 'var(--chalk)' };
+
+  const statBlock = (label, value) => `<div class="coach-stat"><div class="coach-stat-label">${esc(label)}</div><div class="coach-stat-value">${esc(value)}</div></div>`;
+
+  const historyHtml = history.length ? `
+    <div class="aa-column-title" style="margin-top:20px;">COACHING HISTORY</div>
+    <div class="aa-compact-group">
+      ${history.map(s => `<div class="aa-compact-row"><span class="name">${esc(s.teamCity)} ${esc(s.teamName || '')}</span><span class="predict-record">${record(s.wins, s.losses)} career at last snapshot</span></div>`).join('')}
+    </div>
+  ` : '';
+
+  container.innerHTML = `
+    <h2 class="section-title">Coach's Corner</h2>
+    <div class="champion-banner" style="background:${brand.primary}; color:${brand.secondary}; border-color:${brand.secondary};">
+      <div class="champion-banner-label">${esc(current.coachFname)} ${esc(current.coachLname)}</div>
+      <div class="champion-banner-team">${esc(current.teamCity)} ${esc(current.teamName || '')}</div>
+      <div class="champion-banner-score">Year ${esc(current.contractYear)} of ${esc(current.contractTotalYears)} · Season ${esc(current.year)}, Week ${esc(current.week)}</div>
+    </div>
+    <p class="empty-note" style="text-align:left; margin: 14px 0;">${current.lastGame ? `Last game: ${esc(current.lastGame)}` : ''}</p>
+    <div class="coach-stats-grid">
+      ${statBlock('Career Record', record(current.wins, current.losses))}
+      ${statBlock('This Team', `${esc(current.teamYears ?? 0)} yr${current.teamYears === 1 ? '' : 's'}`)}
+      ${statBlock('Winning Seasons', esc(current.winningSeasons ?? 0))}
+      ${statBlock('Win Streak', esc(current.winStreak ?? 0))}
+      ${statBlock('Longest Win Streak', esc(current.longestWinStreak ?? 0))}
+      ${statBlock('Playoffs Made', esc(current.playoffsMade ?? 0))}
+      ${statBlock('Playoff Record', record(current.playoffWins, current.playoffLosses))}
+      ${statBlock('Conference Champs', esc(current.conferenceChamps ?? 0))}
+      ${statBlock('Bowl Record', record(current.bowlWins, current.bowlLosses))}
+      ${statBlock('National Championship', record(current.nattyWins, current.nattyLosses))}
+      ${statBlock('Contract Requires', `${esc(current.contractWins ?? 0)} wins, prestige ${esc(current.contractPrestige ?? 0)}`)}
+    </div>
+    ${historyHtml}
   `;
 }
 

@@ -902,7 +902,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v88</div>
+  <div class="name">MEANMACHINE GAME RECAP v89</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -1800,13 +1800,32 @@ function predictPlayoffField(rosterTeams, scheduleRows, tidToConference, tidToDi
 
   const ccWinnerTids = new Set(ccGames.map(g => g.winnerTid));
 
+  // Any team that ALREADY appears in a real, scheduled bracket game (week
+  // 12+) has definitely made the 24-team field, no matter what our
+  // rank-based guess says - real data always overrides a guess. Without
+  // this, a team the guess missed would show up playing a real bracket
+  // game with no real seed at all (just a confusing fallback "rank"
+  // display), even though the field is actually already decided and we're
+  // just catching up to it.
+  const teamsInRealBracketGames = new Set();
+  (scheduleRows || []).forEach(r => {
+    if (r.year === year && r.week >= 12) {
+      teamsInRealBracketGames.add(r.homeTid);
+      teamsInRealBracketGames.add(r.awayTid);
+    }
+  });
+  const guaranteedTids = new Set([...ccWinnerTids, ...teamsInRealBracketGames]);
+
   const atLargePool = allTids
-    .filter(tid => !ccWinnerTids.has(tid) && rankByTid[tid] != null)
+    .filter(tid => !guaranteedTids.has(tid) && rankByTid[tid] != null)
     .sort(byRankAsc);
 
   const spotsForAtLarge = Math.max(0, 24 - ccWinnerTids.size);
-  const atLargeTeams = atLargePool.slice(0, spotsForAtLarge);
-  const bubbleTeams = atLargePool.slice(spotsForAtLarge, spotsForAtLarge + 4);
+  const atLargeTeams = [...teamsInRealBracketGames].filter(tid => !ccWinnerTids.has(tid) && rankByTid[tid] != null)
+    .sort(byRankAsc)
+    .concat(atLargePool)
+    .slice(0, spotsForAtLarge);
+  const bubbleTeams = atLargePool.filter(tid => !atLargeTeams.includes(tid)).slice(0, 4);
 
   const additionalByesNeeded = Math.max(0, 8 - ccWinnerTids.size);
   const byeTids = new Set([...ccWinnerTids, ...atLargeTeams.slice(0, additionalByesNeeded)]);

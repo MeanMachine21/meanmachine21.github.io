@@ -834,6 +834,7 @@
   }
   .bracket-team.winner { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
   .bracket-seed-num { opacity: 0.75; margin-right: 6px; font-size: 12px; }
+  .bracket-rank-num { opacity: 0.55; margin-right: 6px; font-size: 9px; font-family: 'IBM Plex Mono', monospace; }
   .bracket-slot.unplayed .bracket-team { opacity: 0.75; justify-content: center; }
   .bracket-team.placeholder {
     background: var(--lcd-bg); color: var(--muted); justify-content: center;
@@ -901,7 +902,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v87</div>
+  <div class="name">MEANMACHINE GAME RECAP v88</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -3853,11 +3854,14 @@ function renderPlayoffBracket() {
   const seedPrefix = (city) => {
     if (seedByCity[city] != null) return `<span class="bracket-seed-num">${esc(seedByCity[city])}</span>`;
     // Not in the predictor's guessed top-24 (a real, plausible mismatch -
-    // the predictor is a rank-based guess, the real bracket data is truth) -
-    // fall back to their current true rank so there's still something useful.
+    // the predictor is a rank-based guess, the real bracket data is truth).
+    // Falls back to their current true rank so there's still something
+    // useful shown, but styled and labeled distinctly from a real seed -
+    // this can be any number (even above 24), so showing it identically to
+    // an official seed was genuinely misleading.
     const tid = cityToTid[city];
     const rank = tid != null ? getMostRecentTrueRank(lastScheduleRows, tid) : null;
-    return rank != null ? `<span class="bracket-seed-num">${esc(rank)}</span>` : '';
+    return rank != null ? `<span class="bracket-rank-num">RK${esc(rank)}</span>` : '';
   };
 
   // Builds one slot's HTML (a single bowl game box) - shared by both halves

@@ -762,9 +762,9 @@
     padding: 3px 0;
   }
   .predict-cc-score { font-family: 'Big Shoulders Display', 'Anton', sans-serif; font-weight: 800; font-size: 15px; color: var(--chalk); }
-  .predict-cc-records {
-    display: flex; justify-content: space-between; gap: 8px;
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px;
+  .predict-cc-record {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted);
+    padding-left: 4px; margin-bottom: 2px;
   }
   .predict-winner { color: var(--lcd-green); font-weight: 700; }
   .predict-winner .team-badge { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
@@ -893,7 +893,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v83</div>
+  <div class="name">MEANMACHINE GAME RECAP v85</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -1720,7 +1720,7 @@ function predictPlayoffField(rosterTeams, scheduleRows, tidToConference, tidToDi
     let winner, scoreA, scoreB;
     if (isActualResult) {
       winner = week11Row.homeScore > week11Row.awayScore ? week11Row.homeTid : week11Row.awayTid;
-      scoreA = week11Row.awayScore; scoreB = week11Row.homeScore; // teamA=away, teamB=home per p1/p2 assignment above
+      scoreA = week11Row.homeScore; scoreB = week11Row.awayScore; // teamA=home, teamB=away, matching the p1/p2 assignment above
     } else {
       const r1 = rankByTid[p1], r2 = rankByTid[p2];
       if (r1 == null && r2 == null) winner = p1;
@@ -4005,15 +4005,13 @@ function buildPlayoffPredictionHtml() {
         <span>${teamChip(g.teamA)}</span>
         <span class="predict-cc-score">${scoreA}</span>
       </div>
+      <div class="predict-cc-record">${recordLabel(g.teamA)}</div>
       <div class="predict-cc-team-row ${!winnerIsA ? 'predict-winner' : ''}">
         <span>${teamChip(g.teamB)}</span>
         <span class="predict-cc-score">${scoreB}</span>
       </div>
-      <div class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}" style="text-align:center; margin:4px 0;">${noteText}</div>
-      <div class="predict-cc-records">
-        <span>${recordLabel(g.teamA)}</span>
-        <span>${recordLabel(g.teamB)}</span>
-      </div>
+      <div class="predict-cc-record">${recordLabel(g.teamB)}</div>
+      <div class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}" style="text-align:center; margin:4px 0 0;">${noteText}</div>
     </div>`;
   }).join('');
 

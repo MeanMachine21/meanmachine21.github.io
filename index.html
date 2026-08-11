@@ -756,12 +756,18 @@
     font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
     color: var(--amber); margin-bottom: 4px;
   }
-  .predict-cc-row {
-    display: flex; align-items: center; gap: 8px;
+  .predict-cc-team-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
+    padding: 3px 0;
   }
-  .predict-vs { color: var(--muted); font-size: 10px; }
+  .predict-cc-score { font-family: 'Big Shoulders Display', 'Anton', sans-serif; font-weight: 800; font-size: 15px; color: var(--chalk); }
+  .predict-cc-records {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px;
+  }
   .predict-winner { color: var(--lcd-green); font-weight: 700; }
+  .predict-winner .team-badge { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
   .predict-note {
     margin-left: auto; font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--amber);
     white-space: nowrap;
@@ -797,10 +803,11 @@
   .history-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .history-row { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--chalk); padding: 2px 0; text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .bracket-converge { display: flex; gap: 10px; align-items: stretch; overflow-x: auto; padding: 3px 6px 14px; }
+  .bracket-converge { display: flex; gap: 6px; align-items: stretch; overflow-x: auto; padding: 3px 6px 14px; }
   .bracket-half { display: flex; gap: 6px; height: 640px; }
-  .bracket-center { flex: 0 0 auto; width: 92px; display: flex; align-items: center; }
-  .bracket-round { flex: 0 0 auto; width: 92px; display: flex; flex-direction: column; height: 100%; }
+  .bracket-center { flex: 0 0 auto; width: 115px; display: flex; align-items: center; }
+  .bracket-round { flex: 0 0 auto; width: 78px; display: flex; flex-direction: column; height: 100%; }
+  .bracket-round-wide { width: 115px; }
   .bracket-round-label {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
     color: var(--amber); text-align: center; margin-bottom: 8px; font-weight: 700;
@@ -808,7 +815,7 @@
   .bracket-slots { display: flex; flex-direction: column; flex: 1; justify-content: space-around; }
   .bracket-slot { display: flex; flex-direction: column; gap: 3px; }
   .bracket-bowl-name {
-    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
     color: var(--lcd-green); font-weight: 700; text-align: center; margin-bottom: 3px;
   }
   .bracket-team {
@@ -818,6 +825,7 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.35);
   }
   .bracket-team.winner { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
+  .bracket-seed-num { opacity: 0.75; margin-right: 6px; font-size: 12px; }
   .bracket-slot.unplayed .bracket-team { opacity: 0.75; justify-content: center; }
   .bracket-team.placeholder {
     background: var(--lcd-bg); color: var(--muted); justify-content: center;
@@ -885,7 +893,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v78</div>
+  <div class="name">MEANMACHINE GAME RECAP v83</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -938,6 +946,7 @@
         <div class="check-item" data-key="hof"><span class="led"></span><span class="check-label">Hall of Fame (season awards)</span><span class="check-filename"></span></div>
         <div class="check-item" data-key="player_records"><span class="led"></span><span class="check-label">All-Time Records</span><span class="check-filename"></span></div>
         <div class="check-item" data-key="career_data"><span class="led"></span><span class="check-label">Coach's Corner (career data)</span><span class="check-filename"></span></div>
+        <div class="check-item" data-key="bowls"><span class="led"></span><span class="check-label">Bowl names (optional, matches your save's real names)</span><span class="check-filename"></span></div>
       </div>
       <div class="career-history-panel">
         <div class="extra-files-note" style="margin-top: 4px;">The game completely overwrites Schedule.txt every time you advance to the offseason. In Chrome or Edge, connect a Career History file once and it saves automatically forever after — no backups to remember. In Firefox or Safari (which don't support that), download a snapshot before you're done each session, then drop that same file back in next time — it's one small file to re-upload instead of needing to catch Schedule.txt before every advance.</div>
@@ -1538,28 +1547,72 @@ function describeGameWeek(week) {
 // assignment matched with zero discrepancies). Week 12 (Round 1) has no
 // bowl names at all, matching the bracket art showing plain "on-campus"
 // icons for those games.
-const ROUND_BOWL_SLOTS = {
+// This mapping is specific to the NCAA-themed mod this tool was originally
+// developed against (confirmed via bowls.txt's sponsor/trophy metadata) -
+// it is NOT the base game's universal bowl naming. Used only as a fallback
+// when no bowls.txt has been uploaded for the current save.
+const FALLBACK_ROUND_BOWL_SLOTS = {
   13: ['Copper Bowl', 'Cheez It Bowl', 'Little Caesars Bowl', 'Alamo Bowl', 'Gator Bowl', 'Citrus Bowl', 'Pop Tart Bowl', 'Liberty Bowl'],
   14: ['Peach Bowl', 'Sugar Bowl', 'Cotton Bowl', 'Orange Bowl'],
   15: ['Fiesta Bowl', 'Rose Bowl'],
   16: ['National Championship'],
 };
 
-// Which seed (1-8) plays in each Round 2 bowl - the byes go straight into
-// these specific slots, confirmed against real bracket art and bowls.txt's
-// prestige tiers with zero discrepancies (see the ROUND_BOWL_SLOTS comment
-// above for how that verification worked).
-const ROUND2_BOWL_SEEDS = {
-  'Copper Bowl': 1, 'Gator Bowl': 2, 'Little Caesars Bowl': 3, 'Pop Tart Bowl': 4,
-  'Liberty Bowl': 5, 'Alamo Bowl': 6, 'Citrus Bowl': 7, 'Cheez It Bowl': 8,
+// The STRUCTURAL bracket position -> prestige value mapping, confirmed
+// against real bracket art and cross-verified with bowls.txt's prestige
+// tiers with zero discrepancies. Prestige reflects the game's own fixed
+// bracket/ranking order, independent of what any particular mod names each
+// bowl, so this mapping (unlike the name list above) should hold for any
+// save - vanilla or modded - once bowls.txt gives us the real names per
+// prestige value.
+const ROUND_PRESTIGE_SLOTS = {
+  13: [15, 14, 13, 12, 11, 10, 9, 8],
+  14: [7, 6, 5, 4],
+  15: [3, 2],
+  16: [1],
 };
 
+let lastBowlNames = null; // prestige -> name, from an uploaded bowls.txt
+
+function parseBowlsFile(text) {
+  const cleaned = text.replace(/\0+$/, '').trim();
+  const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) return null;
+  const header = lines[0].split('\t');
+  const idx = (name) => header.indexOf(name);
+  if (idx('prestige') === -1 || idx('name') === -1) return null;
+  const byPrestige = {};
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split('\t');
+    const prestige = Number(cols[idx('prestige')]);
+    if (!Number.isFinite(prestige)) continue;
+    byPrestige[prestige] = cols[idx('name')];
+  }
+  return byPrestige;
+}
+
+// Looks up the real bowl name for a bracket slot, preferring an uploaded
+// bowls.txt (correct for whatever save is actually loaded) and only
+// falling back to the NCAA-mod-specific guess when no bowls.txt is available.
+function getBowlNameForSlot(week, indexInWeek) {
+  const prestigeSlots = ROUND_PRESTIGE_SLOTS[week];
+  const prestige = prestigeSlots ? prestigeSlots[indexInWeek] : null;
+  if (prestige != null && lastBowlNames && lastBowlNames[prestige]) return lastBowlNames[prestige];
+  const fallbackSlots = FALLBACK_ROUND_BOWL_SLOTS[week];
+  return (fallbackSlots && fallbackSlots[indexInWeek]) || null;
+}
+
+// Which seed (1-8) plays in each Round 2 bowl, keyed by the structural
+// prestige value rather than a mod-specific bowl name - the byes go
+// straight into these specific slots regardless of what each bowl is named.
+const ROUND2_SEED_BY_PRESTIGE = { 15: 1, 11: 2, 13: 3, 9: 4, 8: 5, 12: 6, 10: 7, 14: 8 };
+
 function getBowlNameForGame(scheduleRows, matchedRow) {
-  const slots = ROUND_BOWL_SLOTS[matchedRow.week];
+  const slots = ROUND_PRESTIGE_SLOTS[matchedRow.week];
   if (!slots) return null;
   const gamesInWeek = (scheduleRows || []).filter(r => r.year === matchedRow.year && r.week === matchedRow.week);
   const idx = gamesInWeek.indexOf(matchedRow);
-  return (idx >= 0 && idx < slots.length) ? slots[idx] : null;
+  return (idx >= 0 && idx < slots.length) ? getBowlNameForSlot(matchedRow.week, idx) : null;
 }
 
 // Full bracket shape for the Playoff Bracket tab - reuses the same verified
@@ -1700,11 +1753,11 @@ function predictPlayoffField(rosterTeams, scheduleRows, tidToConference, tidToDi
 }
 
 const BRACKET_ROUNDS = [
-  { week: 12, label: 'Round 1', slots: 8, bowlNames: null },
-  { week: 13, label: 'Round 2', slots: 8, bowlNames: ROUND_BOWL_SLOTS[13] },
-  { week: 14, label: 'Round 3', slots: 4, bowlNames: ROUND_BOWL_SLOTS[14] },
-  { week: 15, label: 'Semifinals', slots: 2, bowlNames: ROUND_BOWL_SLOTS[15] },
-  { week: 16, label: 'Championship', slots: 1, bowlNames: ROUND_BOWL_SLOTS[16] },
+  { week: 12, label: 'Round 1', slots: 8, hasBowlNames: false },
+  { week: 13, label: 'Round 2', slots: 8, hasBowlNames: true },
+  { week: 14, label: 'Round 3', slots: 4, hasBowlNames: true },
+  { week: 15, label: 'Semifinals', slots: 2, hasBowlNames: true },
+  { week: 16, label: 'Championship', slots: 1, hasBowlNames: true },
 ];
 
 // Prefers the exact bowl name (weeks 13-16, resolved via bracket position)
@@ -2396,6 +2449,7 @@ function identifyFile(filename, rawText) {
   if (has('trophy_text')) return 'hof';
   if (has('salary_cap_spent')) return 'career_data';
   if (has('stat_type') && has('retired_yr')) return 'player_records';
+  if (has('prestige') && has('sponsor') && has('trophy_name')) return 'bowls';
   if (firstLine.replace(/\s+/g, '') === 'color1color2color3') return 'colors';
   return null;
 }
@@ -2440,12 +2494,15 @@ function assignByType(type, text, filename) {
     playerRecordsText = text;
     if (!pendingPlayerRecordsFiles.some(f => f.text === text)) pendingPlayerRecordsFiles.push({ filename, text });
   }
+  else if (type === 'bowls') {
+    try { lastBowlNames = parseBowlsFile(text); } catch (e) { lastBowlNames = null; }
+  }
   else if (type === 'playbooks') { playbooksText = text; }
   else if (type === 'franchisenews') { franchiseNewsText = text; }
   else if (type === 'original_roster') { originalRosterText = text; }
 }
 
-const CHECKLIST_KEYS = ['stats', 'playsheet', 'roster_user', 'schedule', 'colors', 'career_history_archive', 'draft_class', 'hof', 'player_records', 'career_data'];
+const CHECKLIST_KEYS = ['stats', 'playsheet', 'roster_user', 'schedule', 'colors', 'career_history_archive', 'draft_class', 'hof', 'player_records', 'career_data', 'bowls'];
 const recognizedExtras = [];
 const unrecognizedFiles = [];
 
@@ -3696,13 +3753,46 @@ function renderPlayoffBracket() {
   const bracketYear = getCurrentYear(lastScheduleRows);
   const tidToCity = lastRosterTeams ? buildTidToCityMap(lastRosterTeams) : {};
 
+  // The predictor already knows the 8 bye seeds (in rank order) even before
+  // week 12 is played - reused here so a bye team can show as "waiting" in
+  // their known Round 2 slot, rather than a bare "?" for a game we can
+  // actually already half-know the answer to.
+  const bracketPrediction = predictPlayoffField(lastRosterTeams, lastScheduleRows, lastTidToConference, lastTidToDivision);
+  const byeTeamsBySeed = bracketPrediction
+    ? bracketPrediction.fullField.filter(tid => bracketPrediction.byeTids.has(tid))
+        .sort((a, b) => (bracketPrediction.rankByTid[a] ?? 999) - (bracketPrediction.rankByTid[b] ?? 999))
+    : [];
+  // Full 1-24 seed lookup (fullField is already sorted by rank: byes first,
+  // then at-large) so any team shown anywhere in the bracket - not just the
+  // bye teams waiting in Round 2 - can show its seed number. Keyed by city
+  // abbreviation since that's what every display path actually has on hand.
+  const seedByCity = {};
+  if (bracketPrediction) {
+    bracketPrediction.fullField.forEach((tid, i) => {
+      const city = tidToCity[tid];
+      if (city) seedByCity[city] = i + 1;
+    });
+  }
+  const cityToTid = {};
+  Object.keys(tidToCity).forEach(tid => { cityToTid[tidToCity[tid]] = Number(tid); });
+  const seedPrefix = (city) => {
+    if (seedByCity[city] != null) return `<span class="bracket-seed-num">${esc(seedByCity[city])}</span>`;
+    // Not in the predictor's guessed top-24 (a real, plausible mismatch -
+    // the predictor is a rank-based guess, the real bracket data is truth) -
+    // fall back to their current true rank so there's still something useful.
+    const tid = cityToTid[city];
+    const rank = tid != null ? getMostRecentTrueRank(lastScheduleRows, tid) : null;
+    return rank != null ? `<span class="bracket-seed-num">${esc(rank)}</span>` : '';
+  };
+
   // Builds one slot's HTML (a single bowl game box) - shared by both halves
   // and the center column, so there's exactly one place that knows how to
   // resolve a slot's data (loaded game -> Schedule.txt fallback -> placeholder).
   function buildSlot(round, i) {
-    const bowlName = round.bowlNames ? round.bowlNames[i] : null;
-    const seedNum = ROUND2_BOWL_SEEDS[bowlName];
-    const bowlLabel = bowlName ? bowlName.replace(/\s*Bowl$/i, '') + (seedNum != null ? ` #${seedNum}` : '') : null;
+    const bowlName = round.hasBowlNames ? getBowlNameForSlot(round.week, i) : null;
+    const prestige = ROUND_PRESTIGE_SLOTS[round.week] ? ROUND_PRESTIGE_SLOTS[round.week][i] : null;
+    const seedNum = prestige != null ? ROUND2_SEED_BY_PRESTIGE[prestige] : null;
+    const bowlLabel = bowlName ? bowlName.replace(/\s*Bowl$/i, '') : null;
     const bowlHtml = bowlLabel ? `<div class="bracket-bowl-name">${esc(bowlLabel)}</div>` : '';
     const scheduleGamesInWeek = (lastScheduleRows || []).filter(r => r.year === bracketYear && r.week === round.week);
 
@@ -3714,10 +3804,10 @@ function renderPlayoffBracket() {
       return `<div class="bracket-slot filled">
         ${bowlHtml}
         <div class="bracket-team ${!homeWon ? 'winner' : ''}" style="background:${visB.primary}; color:${visB.secondary};">
-          <span>${esc(loadedGame.model.visitorCity)}</span><span class="bracket-score">${loadedGame.model.finalVisitor}</span>
+          <span>${seedPrefix(loadedGame.model.visitorCity)}${esc(loadedGame.model.visitorCity)}</span><span class="bracket-score">${loadedGame.model.finalVisitor}</span>
         </div>
         <div class="bracket-team ${homeWon ? 'winner' : ''}" style="background:${homeB.primary}; color:${homeB.secondary};">
-          <span>${esc(loadedGame.model.homeCity)}</span><span class="bracket-score">${loadedGame.model.finalHome}</span>
+          <span>${seedPrefix(loadedGame.model.homeCity)}${esc(loadedGame.model.homeCity)}</span><span class="bracket-score">${loadedGame.model.finalHome}</span>
         </div>
       </div>`;
     }
@@ -3733,12 +3823,27 @@ function renderPlayoffBracket() {
       return `<div class="bracket-slot filled${isPlayed ? '' : ' unplayed'}">
         ${bowlHtml}
         <div class="bracket-team ${isPlayed && !homeWon ? 'winner' : ''}" style="background:${visB.primary}; color:${visB.secondary};">
-          <span>${esc(awayCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.awayScore}</span>` : ''}
+          <span>${seedPrefix(awayCity)}${esc(awayCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.awayScore}</span>` : ''}
         </div>
         <div class="bracket-team ${isPlayed && homeWon ? 'winner' : ''}" style="background:${homeB.primary}; color:${homeB.secondary};">
-          <span>${esc(homeCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.homeScore}</span>` : ''}
+          <span>${seedPrefix(homeCity)}${esc(homeCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.homeScore}</span>` : ''}
         </div>
       </div>`;
+    }
+
+    if (seedNum != null && byeTeamsBySeed[seedNum - 1] != null) {
+      const waitingTid = byeTeamsBySeed[seedNum - 1];
+      const waitingCity = tidToCity[waitingTid];
+      if (waitingCity) {
+        const brand = singleTeamBranding(waitingCity);
+        return `<div class="bracket-slot filled unplayed">
+          ${bowlHtml}
+          <div class="bracket-team" style="background:${brand.primary}; color:${brand.secondary};">
+            <span class="bracket-seed-num">${esc(seedNum)}</span><span>${esc(waitingCity)}</span>
+          </div>
+          <div class="bracket-team placeholder">?</div>
+        </div>`;
+      }
     }
 
     return `<div class="bracket-slot empty">
@@ -3753,10 +3858,10 @@ function renderPlayoffBracket() {
   // later rounds (fewer slots) naturally land near the vertical midpoint of
   // the pair that feeds them - implying the bracket's connections through
   // alignment alone, without needing fragile hand-drawn connector lines.
-  function roundColumn(round, startIdx, endIdx) {
+  function roundColumn(round, startIdx, endIdx, wide) {
     const slots = [];
     for (let i = startIdx; i < endIdx; i++) slots.push(buildSlot(round, i));
-    return `<div class="bracket-round">
+    return `<div class="bracket-round${wide ? ' bracket-round-wide' : ''}">
       <div class="bracket-round-label">${esc(round.label)}</div>
       <div class="bracket-slots">${slots.join('')}</div>
     </div>`;
@@ -3764,12 +3869,12 @@ function renderPlayoffBracket() {
 
   const [r1, r2, r3, semi, champ] = BRACKET_ROUNDS;
   const leftHtml = [
-    roundColumn(r1, 0, 4), roundColumn(r2, 0, 4), roundColumn(r3, 0, 2), roundColumn(semi, 0, 1),
+    roundColumn(r1, 0, 4), roundColumn(r2, 0, 4), roundColumn(r3, 0, 2), roundColumn(semi, 0, 1, true),
   ].join('');
   const rightHtml = [
-    roundColumn(semi, 1, 2), roundColumn(r3, 2, 4), roundColumn(r2, 4, 8), roundColumn(r1, 4, 8),
+    roundColumn(semi, 1, 2, true), roundColumn(r3, 2, 4), roundColumn(r2, 4, 8), roundColumn(r1, 4, 8),
   ].join('');
-  const centerHtml = roundColumn(champ, 0, 1);
+  const centerHtml = roundColumn(champ, 0, 1, true);
 
   // Resolves the championship winner specifically, for the banner - separate
   // from buildSlot's own resolution since this needs the winner's identity
@@ -3870,31 +3975,44 @@ function buildPlayoffPredictionHtml() {
   const recordLabel = (tid) => {
     const overall = computeTeamRecord(lastScheduleRows, tid, prediction.year, () => true);
     const conf = computeTeamRecord(lastScheduleRows, tid, prediction.year, (t2) => lastTidToConference[t2] === lastTidToConference[tid]);
-    return `<span class="predict-record">${esc(formatRecord(overall))} · ${esc(formatRecord(conf))} conf</span>`;
+    return `${esc(formatRecord(overall))} · ${esc(formatRecord(conf))} conf`;
   };
   const teamChip = (tid) => {
     const cityabbr = tidToCity[tid];
     const fullName = tidToFullName[tid] || cityabbr;
-    return cityabbr
-      ? `${rankLabel(tid)} ${teamBadge(cityabbr, fullName)} ${recordLabel(tid)}`
-      : `${rankLabel(tid)} ?`;
+    return cityabbr ? `${rankLabel(tid)} ${teamBadge(cityabbr, fullName)}` : `${rankLabel(tid)} ?`;
   };
 
-  const confNames = pendingCareerDataFiles.length ? mergeCareerDataFiles(pendingCareerDataFiles)[0].conferenceNames : null;
+  const confNamesFromCareerData = pendingCareerDataFiles.length ? mergeCareerDataFiles(pendingCareerDataFiles)[0].conferenceNames : null;
+  // bowls.txt's prestige 16-21 also carries conference names (G5, ACC, Pac
+  // 12, Big 12, SEC, Big 10 in that order) - used as a fallback when
+  // career_data.txt hasn't been uploaded, mapped to the same conf0-5 index
+  // order already verified against actual team groupings.
+  const confNamesFromBowls = lastBowlNames
+    ? [lastBowlNames[21], lastBowlNames[20], lastBowlNames[19], lastBowlNames[18], lastBowlNames[17], lastBowlNames[16]]
+    : null;
+  const confNames = confNamesFromCareerData || confNamesFromBowls;
   const confLabel = (conf) => (confNames && confNames[conf]) ? confNames[conf] : `Conference ${conf}`;
 
   const ccRows = prediction.ccGames.map(g => {
     const winnerIsA = g.winnerTid === g.teamA;
-    const noteText = g.isActualResult
-      ? `${esc(g.scoreA)}-${esc(g.scoreB)} FINAL`
-      : (g.fromRealSchedule ? 'scheduled' : 'projected matchup');
+    const noteText = g.isActualResult ? 'FINAL' : (g.fromRealSchedule ? 'scheduled' : 'projected matchup');
+    const scoreA = g.isActualResult ? esc(g.scoreA) : '';
+    const scoreB = g.isActualResult ? esc(g.scoreB) : '';
     return `<div class="predict-cc-box">
       <div class="predict-cc-conf">${esc(confLabel(g.conference))}</div>
-      <div class="predict-cc-row">
-        <span class="${winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamA)}</span>
-        <span class="predict-vs">vs</span>
-        <span class="${!winnerIsA ? 'predict-winner' : ''}">${teamChip(g.teamB)}</span>
-        <span class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}">${noteText}</span>
+      <div class="predict-cc-team-row ${winnerIsA ? 'predict-winner' : ''}">
+        <span>${teamChip(g.teamA)}</span>
+        <span class="predict-cc-score">${scoreA}</span>
+      </div>
+      <div class="predict-cc-team-row ${!winnerIsA ? 'predict-winner' : ''}">
+        <span>${teamChip(g.teamB)}</span>
+        <span class="predict-cc-score">${scoreB}</span>
+      </div>
+      <div class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}" style="text-align:center; margin:4px 0;">${noteText}</div>
+      <div class="predict-cc-records">
+        <span>${recordLabel(g.teamA)}</span>
+        <span>${recordLabel(g.teamB)}</span>
       </div>
     </div>`;
   }).join('');
@@ -3904,7 +4022,7 @@ function buildPlayoffPredictionHtml() {
   const otherTeams = prediction.fullField.filter(tid => !prediction.byeTids.has(tid))
     .sort((a, b) => (prediction.rankByTid[a] ?? 999) - (prediction.rankByTid[b] ?? 999));
 
-  const fieldRow = (tid) => `<div class="aa-compact-row predict-field-row">${teamChip(tid)}${prediction.ccWinnerTids.has(tid) ? '<span class="predict-note">conf champ</span>' : ''}</div>`;
+  const fieldRow = (tid) => `<div class="aa-compact-row predict-field-row">${teamChip(tid)} <span class="predict-record">${recordLabel(tid)}</span>${prediction.ccWinnerTids.has(tid) ? '<span class="predict-note">conf champ</span>' : ''}</div>`;
 
   return `
     <div class="predict-section">

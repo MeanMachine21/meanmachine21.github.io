@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MeanMachine Game Recap</title>
+<title>MeanMachine Yearbook</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600;700&family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -766,7 +766,15 @@
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted);
     padding-left: 4px; margin-bottom: 2px;
   }
+  .predict-odds-line {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--amber);
+    text-align: center; margin-top: 3px; letter-spacing: 0.3px;
+  }
   .predict-winner { color: var(--lcd-green); font-weight: 700; }
+  .bracket-odds-line {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--amber);
+    text-align: center; margin-top: 1px;
+  }
   .predict-winner .team-badge { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
   .predict-note {
     margin-left: auto; font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--amber);
@@ -893,7 +901,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v85</div>
+  <div class="name">MEANMACHINE GAME RECAP v86</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -1384,6 +1392,63 @@ function relLuminance(hex) {
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// A from-scratch, for-fun "odds" model built entirely from data already in
+// the tool (current true rank) - NOT real betting lines, no market data
+// involved. Uses the same logistic-curve shape as Elo/538-style win
+// probability models: win prob moves smoothly from a toss-up (close ranks)
+// toward near-certainty (huge rank gap), rather than jumping linearly.
+// K controls how steeply a rank gap turns into a probability - tuned so a
+// close gap (3 spots) reads as a mild favorite (~57%) and a big gap (40
+// spots) reads as heavily favored (~97%) without hitting an absurd 99.9%+.
+function computeMatchupOdds(rankA, rankB) {
+  if (rankA == null || rankB == null) return null;
+  const K = 25;
+  const pA = 1 / (1 + Math.pow(10, (rankA - rankB) / K));
+  const pB = 1 - pA;
+  const toMoneyline = (p) => {
+    if (p <= 0 || p >= 1) return null;
+    return p >= 0.5 ? Math.round(-100 * p / (1 - p)) : Math.round(100 * (1 - p) / p);
+  };
+  // No real historical scoring-margin data to calibrate against, so this is
+  // a simple, capped rank-gap-to-points heuristic - internally consistent
+  // with the win probability, not claiming real predictive precision.
+  const rawSpread = Math.abs(rankA - rankB) * 0.4;
+  const spread = Math.min(28, Math.round(rawSpread * 2) / 2);
+  return {
+    probA: pA, probB: pB,
+    moneylineA: toMoneyline(pA), moneylineB: toMoneyline(pB),
+    favoredIsA: pA >= pB, spread,
+  };
+}
+
+function formatMoneyline(ml) {
+  if (ml == null) return '';
+  return ml > 0 ? `+${ml}` : `${ml}`;
+}
+
+// Shared odds-line builder for the "for fun, not real" model - reused
+// across the CC boxes, the real bracket, and Matchup Card so the format
+// stays identical everywhere it appears.
+function buildOddsLineHtml(rankA, cityA, rankB, cityB) {
+  const odds = computeMatchupOdds(rankA, rankB);
+  if (!odds) return '';
+  const favCity = odds.favoredIsA ? cityA : cityB;
+  const favMl = odds.favoredIsA ? odds.moneylineA : odds.moneylineB;
+  const dogCity = odds.favoredIsA ? cityB : cityA;
+  const dogMl = odds.favoredIsA ? odds.moneylineB : odds.moneylineA;
+  const favProb = odds.favoredIsA ? odds.probA : odds.probB;
+  return `<div class="predict-odds-line">${esc(favCity)} -${esc(odds.spread)} &nbsp;·&nbsp; ${esc(favCity)} ${esc(formatMoneyline(favMl))} / ${esc(dogCity)} ${esc(formatMoneyline(dogMl))} &nbsp;·&nbsp; ${esc(Math.round(favProb * 100))}%</div>`;
+}
+
+// Compact variant for tight spaces (the bracket's narrow columns) - just
+// the favorite and spread, not the full moneyline breakdown.
+function buildOddsLineCompact(rankA, cityA, rankB, cityB) {
+  const odds = computeMatchupOdds(rankA, rankB);
+  if (!odds) return '';
+  const favCity = odds.favoredIsA ? cityA : cityB;
+  return `<div class="bracket-odds-line">${esc(favCity)} -${esc(odds.spread)}</div>`;
 }
 
 function contrastRatio(hexA, hexB) {
@@ -3820,6 +3885,10 @@ function renderPlayoffBracket() {
       const branding = assignTeamColors(homeCity, awayCity, lastBaseColorFields);
       const homeWon = isPlayed && schedRow.homeScore > schedRow.awayScore;
       const visB = branding[awayCity], homeB = branding[homeCity];
+      const oddsHtml = isPlayed ? '' : buildOddsLineCompact(
+        getMostRecentTrueRank(lastScheduleRows, schedRow.awayTid), awayCity,
+        getMostRecentTrueRank(lastScheduleRows, schedRow.homeTid), homeCity
+      );
       return `<div class="bracket-slot filled${isPlayed ? '' : ' unplayed'}">
         ${bowlHtml}
         <div class="bracket-team ${isPlayed && !homeWon ? 'winner' : ''}" style="background:${visB.primary}; color:${visB.secondary};">
@@ -3828,6 +3897,7 @@ function renderPlayoffBracket() {
         <div class="bracket-team ${isPlayed && homeWon ? 'winner' : ''}" style="background:${homeB.primary}; color:${homeB.secondary};">
           <span>${seedPrefix(homeCity)}${esc(homeCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.homeScore}</span>` : ''}
         </div>
+        ${oddsHtml}
       </div>`;
     }
 
@@ -4011,6 +4081,7 @@ function buildPlayoffPredictionHtml() {
         <span class="predict-cc-score">${scoreB}</span>
       </div>
       <div class="predict-cc-record">${recordLabel(g.teamB)}</div>
+      ${g.isActualResult ? '' : buildOddsLineHtml(prediction.rankByTid[g.teamA], tidToCity[g.teamA], prediction.rankByTid[g.teamB], tidToCity[g.teamB])}
       <div class="predict-note ${g.isActualResult ? 'predict-note-final' : ''}" style="text-align:center; margin:4px 0 0;">${noteText}</div>
     </div>`;
   }).join('');
@@ -4025,6 +4096,7 @@ function buildPlayoffPredictionHtml() {
   return `
     <div class="predict-section">
       <div class="predict-disclaimer">Projected before Conference Championships are played, using current true ranks — the 6 predicted conference champions are guaranteed a spot regardless of rank, exactly like the real rule allows an unranked champion to bump a ranked bubble team.</div>
+      <div class="predict-disclaimer" style="margin-top:6px; color:var(--amber);">The odds shown throughout are a made-up model based on current rank — not real betting lines, not Vegas, just for fun.</div>
       <div class="aa-compact-group-title" style="margin-top:12px;">CONFERENCE CHAMPIONSHIPS</div>
       <div class="empty-note" style="text-align:left; margin: 4px 0 0; font-size: 10px;">Games already decided in Schedule.txt show the real result; anything not yet played is a projection based on current rank.</div>
       <div class="predict-cc-grid">${ccRows}</div>
@@ -4370,7 +4442,7 @@ function renderMatchupCardResult(cityA, cityB) {
           <div class="np-rank">${esc(rankBadgeTextFor(infoA, getMostRecentTrueRank(lastScheduleRows, infoA.tid)))}</div>
           ${recordA}
         </div>
-        <div class="scorebug-center"><div class="center-tag">VS</div></div>
+        <div class="scorebug-center"><div class="center-tag">VS</div>${buildOddsLineHtml(getMostRecentTrueRank(lastScheduleRows, infoA.tid), cityA, getMostRecentTrueRank(lastScheduleRows, infoB.tid), cityB)}</div>
         <div class="nameplate" style="background:${branding[cityB].primary}; color:${branding[cityB].secondary};">
           ${starRow(infoB.prestige, branding[cityB].secondary)}
           <div class="np-city">${esc(teamB.city)}</div>
@@ -4381,6 +4453,7 @@ function renderMatchupCardResult(cityA, cityB) {
       <div class="key-players-row">${keyPlayersHtml(teamA, cityA)}${keyPlayersHtml(teamB, cityB)}</div>
       ${historyHtml}
     </div>
+    <div class="predict-disclaimer" style="margin-top:10px; color:var(--amber); font-size:10px;">Odds shown are a made-up model based on current rank — not real betting lines, just for fun.</div>
     <div class="obs-controls">
       <button class="go-overlay-btn" id="matchup-preview-btn">PREVIEW OVERLAY</button>
       ${OBS_FILE_SUPPORTED ? '<button class="go-overlay-btn obs-connect-btn" id="matchup-connect-btn">CONNECT LIVE OBS FILE</button>' : ''}

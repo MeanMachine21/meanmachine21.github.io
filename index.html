@@ -834,7 +834,6 @@
   }
   .bracket-team.winner { box-shadow: 0 0 0 2px var(--lcd-green), 0 2px 4px rgba(0,0,0,0.35); }
   .bracket-seed-num { opacity: 0.75; margin-right: 6px; font-size: 12px; }
-  .bracket-rank-num { opacity: 0.55; margin-right: 6px; font-size: 9px; font-family: 'IBM Plex Mono', monospace; }
   .bracket-slot.unplayed .bracket-team { opacity: 0.75; justify-content: center; }
   .bracket-team.placeholder {
     background: var(--lcd-bg); color: var(--muted); justify-content: center;
@@ -902,7 +901,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v89</div>
+  <div class="name">MEANMACHINE GAME RECAP v91</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -1624,6 +1623,16 @@ const FALLBACK_ROUND_BOWL_SLOTS = {
   16: ['National Championship'],
 };
 
+// Round 1's seed pairing, confirmed directly against the real bracket setup
+// diagram (games 1-8) - in the same bracket-position order as
+// FALLBACK_ROUND_BOWL_SLOTS above (index 0 feeds Copper/seed 1, index 1
+// feeds Cheez It/seed 8, etc.), so a slot's Round 1 pairing and the bye
+// seed it eventually meets always correspond to the same position.
+const ROUND1_SEED_PAIRS = [
+  [17, 16], [24, 9], [20, 13], [21, 12],
+  [18, 15], [23, 10], [19, 14], [22, 11],
+];
+
 // The STRUCTURAL bracket position -> prestige value mapping, confirmed
 // against real bracket art and cross-verified with bowls.txt's prestige
 // tiers with zero discrepancies. Prestige reflects the game's own fixed
@@ -1808,10 +1817,15 @@ function predictPlayoffField(rosterTeams, scheduleRows, tidToConference, tidToDi
   // display), even though the field is actually already decided and we're
   // just catching up to it.
   const teamsInRealBracketGames = new Set();
+  const teamsInRealRound1 = new Set();
   (scheduleRows || []).forEach(r => {
     if (r.year === year && r.week >= 12) {
       teamsInRealBracketGames.add(r.homeTid);
       teamsInRealBracketGames.add(r.awayTid);
+      if (r.week === 12) {
+        teamsInRealRound1.add(r.homeTid);
+        teamsInRealRound1.add(r.awayTid);
+      }
     }
   });
   const guaranteedTids = new Set([...ccWinnerTids, ...teamsInRealBracketGames]);
@@ -1827,8 +1841,13 @@ function predictPlayoffField(rosterTeams, scheduleRows, tidToConference, tidToDi
     .slice(0, spotsForAtLarge);
   const bubbleTeams = atLargePool.filter(tid => !atLargeTeams.includes(tid)).slice(0, 4);
 
+  // Being in Round 1 and having a bye are mutually exclusive by definition -
+  // a team already confirmed playing a real Round 1 game can never be one
+  // of the "top 2 at-large" bye picks, even if their rank alone would
+  // otherwise suggest it.
   const additionalByesNeeded = Math.max(0, 8 - ccWinnerTids.size);
-  const byeTids = new Set([...ccWinnerTids, ...atLargeTeams.slice(0, additionalByesNeeded)]);
+  const byeEligibleAtLarge = atLargeTeams.filter(tid => !teamsInRealRound1.has(tid));
+  const byeTids = new Set([...ccWinnerTids, ...byeEligibleAtLarge.slice(0, additionalByesNeeded)]);
 
   return {
     year, rankByTid, ccGames, ccWinnerTids,
@@ -3868,19 +3887,39 @@ function renderPlayoffBracket() {
     const city = tidToCity[tid];
     if (city) seedByCity[city] = i + 1;
   });
+  const seedPrefix = (city) => {
+    // Once we're looking at the actual bracket, only a real 1-24 seed
+    // should ever be shown next to a team - rank is what LEADS to seeding,
+    // but isn't meaningful once seeding is what's on screen (especially
+    // since the game re-ranks the whole league after week 11, making any
+    // pre-week-11 rank stale for bracket purposes anyway). The guaranteed-
+    // field fix means any team actually appearing in a real bracket slot
+    // already gets a genuine seed, so this should be effectively unreachable
+    // in practice - if it ever isn't, showing nothing is more honest than
+    // showing a number that looks like a seed but isn't one.
+    return seedByCity[city] != null ? `<span class="bracket-seed-num">${esc(seedByCity[city])}</span>` : '';
+  };
+
   const cityToTid = {};
   Object.keys(tidToCity).forEach(tid => { cityToTid[tidToCity[tid]] = Number(tid); });
-  const seedPrefix = (city) => {
-    if (seedByCity[city] != null) return `<span class="bracket-seed-num">${esc(seedByCity[city])}</span>`;
-    // Not in the predictor's guessed top-24 (a real, plausible mismatch -
-    // the predictor is a rank-based guess, the real bracket data is truth).
-    // Falls back to their current true rank so there's still something
-    // useful shown, but styled and labeled distinctly from a real seed -
-    // this can be any number (even above 24), so showing it identically to
-    // an official seed was genuinely misleading.
-    const tid = cityToTid[city];
-    const rank = tid != null ? getMostRecentTrueRank(lastScheduleRows, tid) : null;
-    return rank != null ? `<span class="bracket-rank-num">RK${esc(rank)}</span>` : '';
+
+  // For Round 1 specifically, the seed pairing is CONFIRMED (verified
+  // against the real bracket setup diagram), not a rank-based guess - the
+  // two seed NUMBERS for a given slot are fixed, but which of the two
+  // actual teams in that game holds the better vs worse seed of the pair
+  // still depends on their current rank relative to each other.
+  const round1SeedPrefix = (slotIndex, city, otherCity) => {
+    const pair = ROUND1_SEED_PAIRS[slotIndex];
+    if (!pair) return seedPrefix(city);
+    const betterSeed = Math.min(pair[0], pair[1]), worseSeed = Math.max(pair[0], pair[1]);
+    const tid = cityToTid[city], otherTid = cityToTid[otherCity];
+    const rank = tid != null && bracketPrediction ? bracketPrediction.rankByTid[tid] : null;
+    const otherRank = otherTid != null && bracketPrediction ? bracketPrediction.rankByTid[otherTid] : null;
+    let seed;
+    if (rank == null) seed = worseSeed;
+    else if (otherRank == null) seed = betterSeed;
+    else seed = rank <= otherRank ? betterSeed : worseSeed;
+    return `<span class="bracket-seed-num">${esc(seed)}</span>`;
   };
 
   // Builds one slot's HTML (a single bowl game box) - shared by both halves
@@ -3902,10 +3941,10 @@ function renderPlayoffBracket() {
       return `<div class="bracket-slot filled">
         ${bowlHtml}
         <div class="bracket-team ${!homeWon ? 'winner' : ''}" style="background:${visB.primary}; color:${visB.secondary};">
-          <span>${seedPrefix(loadedGame.model.visitorCity)}${esc(loadedGame.model.visitorCity)}</span><span class="bracket-score">${loadedGame.model.finalVisitor}</span>
+          <span>${round.week === 12 ? round1SeedPrefix(i, loadedGame.model.visitorCity, loadedGame.model.homeCity) : seedPrefix(loadedGame.model.visitorCity)}${esc(loadedGame.model.visitorCity)}</span><span class="bracket-score">${loadedGame.model.finalVisitor}</span>
         </div>
         <div class="bracket-team ${homeWon ? 'winner' : ''}" style="background:${homeB.primary}; color:${homeB.secondary};">
-          <span>${seedPrefix(loadedGame.model.homeCity)}${esc(loadedGame.model.homeCity)}</span><span class="bracket-score">${loadedGame.model.finalHome}</span>
+          <span>${round.week === 12 ? round1SeedPrefix(i, loadedGame.model.homeCity, loadedGame.model.visitorCity) : seedPrefix(loadedGame.model.homeCity)}${esc(loadedGame.model.homeCity)}</span><span class="bracket-score">${loadedGame.model.finalHome}</span>
         </div>
       </div>`;
     }
@@ -3925,10 +3964,10 @@ function renderPlayoffBracket() {
       return `<div class="bracket-slot filled${isPlayed ? '' : ' unplayed'}">
         ${bowlHtml}
         <div class="bracket-team ${isPlayed && !homeWon ? 'winner' : ''}" style="background:${visB.primary}; color:${visB.secondary};">
-          <span>${seedPrefix(awayCity)}${esc(awayCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.awayScore}</span>` : ''}
+          <span>${round.week === 12 ? round1SeedPrefix(i, awayCity, homeCity) : seedPrefix(awayCity)}${esc(awayCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.awayScore}</span>` : ''}
         </div>
         <div class="bracket-team ${isPlayed && homeWon ? 'winner' : ''}" style="background:${homeB.primary}; color:${homeB.secondary};">
-          <span>${seedPrefix(homeCity)}${esc(homeCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.homeScore}</span>` : ''}
+          <span>${round.week === 12 ? round1SeedPrefix(i, homeCity, awayCity) : seedPrefix(homeCity)}${esc(homeCity)}</span>${isPlayed ? `<span class="bracket-score">${schedRow.homeScore}</span>` : ''}
         </div>
         ${oddsHtml}
       </div>`;

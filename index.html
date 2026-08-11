@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MeanMachine Yearbook</title>
+<title>MeanMachine Game Recap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600;700&family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -901,7 +901,7 @@
 <body>
 
 <div class="titlebar">
-  <div class="name">MEANMACHINE GAME RECAP v86</div>
+  <div class="name">MEANMACHINE GAME RECAP v87</div>
   <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="dots"><span></span><span></span><span></span></div>
 </div>
@@ -3831,13 +3831,23 @@ function renderPlayoffBracket() {
   // then at-large) so any team shown anywhere in the bracket - not just the
   // bye teams waiting in Round 2 - can show its seed number. Keyed by city
   // abbreviation since that's what every display path actually has on hand.
+  // fullField's bye-team portion is ordered by conference index (0-5), NOT
+  // by rank - it's built as [...ccWinnerTids, ...atLargeTeams] and Sets
+  // iterate in insertion order, which here means "conference order," not
+  // "who's actually best." Displaying that directly as a seed number was
+  // wrong (e.g. the league's true #1 team could show as seed 2 just because
+  // a different conference's champion got inserted first). Build the
+  // seed lookup from properly rank-sorted sequences instead.
+  const atLargeBySeed = bracketPrediction
+    ? bracketPrediction.atLargeTeams.filter(tid => !bracketPrediction.byeTids.has(tid))
+        .sort((a, b) => (bracketPrediction.rankByTid[a] ?? 999) - (bracketPrediction.rankByTid[b] ?? 999))
+    : [];
+  const fullFieldBySeed = [...byeTeamsBySeed, ...atLargeBySeed];
   const seedByCity = {};
-  if (bracketPrediction) {
-    bracketPrediction.fullField.forEach((tid, i) => {
-      const city = tidToCity[tid];
-      if (city) seedByCity[city] = i + 1;
-    });
-  }
+  fullFieldBySeed.forEach((tid, i) => {
+    const city = tidToCity[tid];
+    if (city) seedByCity[city] = i + 1;
+  });
   const cityToTid = {};
   Object.keys(tidToCity).forEach(tid => { cityToTid[tidToCity[tid]] = Number(tid); });
   const seedPrefix = (city) => {
